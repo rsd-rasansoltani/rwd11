@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>حسابداری شخصی حرفه‌ای RWD11</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/crypto-js@4.1.1/crypto-js.js"></script>
+  <style>
+    body {
+      font-family: 'Vazir', -apple-system, BlinkMacSystemFont, sans-serif;
+      direction: rtl;
+      min-height: 100vh;
+      transition: background-color 0.3s, color 0.3s;
+    }
+    .light-mode {
+      background: linear-gradient(135deg, #f7fafc, #e2e8f0);
+      color: #1a202c;
+    }
+    .dark-mode {
+      background: linear-gradient(135deg, #1a202c, #2d3748);
+      color: #e2e8f0;
+    }
+    .animate-slide-in {
+      animation: slideIn 0.5s ease-out;
+    }
+    @keyframes slideIn {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    #chartContainer { max-width: 100%; height: 350px; }
+    input, select, button { outline: none; }
+  </style>
+</head>
+<body class="dark-mode p-4 sm:p-6 md:p-8">
+  <div class="container max-w-5xl mx-auto bg-gray-800 dark:bg-gray-900 light:bg-white rounded-2xl shadow-2xl p-6 sm:p-8 animate-slide-in">
+    <div class="flex justify-between items-center mb-8">
+      <h1 class="text-3xl sm:text-4xl font-bold text-teal-400 dark:text-teal-300 light:text-teal-600">حسابداری حرفه‌ای RWD11</h1>
+      <button onclick="toggleTheme()" class="p-2 bg-gray-700 dark:bg-gray-600 light:bg-gray-200 rounded-lg hover:bg-gray-600 dark:hover:bg-gray-500 light:hover:bg-gray-300 transition">
+        <span class="dark:hidden">🌙</span>
+        <span class="hidden dark:block">☀️</span>
+      </button>
+    </div>
+
+    <!-- Password Protection -->
+    <div id="passwordSection" class="mb-6">
+      <input type="password" id="password" placeholder="رمز عبور (برای اولین بار تنظیم کنید)" class="w-full p-3 rounded-lg bg-gray-700 dark:bg-gray-600 light:bg-gray-200 text-white dark:text-white light:text-black border border-gray-600 dark:border-gray-500 light:border-gray-300 focus:border-teal-400 mb-3">
+      <button onclick="unlockData()" class="w-full p-3 bg-teal-500 text-black rounded-lg hover:bg-teal-400 transition">باز کردن / تنظیم رمز</button>
+    </div>
+
+    <!-- Main Content (Hidden until unlocked) -->
+    <div id="mainContent" class="hidden">
+      <!-- Input Form -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <input type="text" id="desc" placeholder="توضیح" class="p-3 rounded-lg bg-gray-700 dark:bg-gray-600 light:bg-gray-200 text-white dark:text-white light:text-black border border-gray-600 dark:border-gray-500 light:border-gray-300 focus:border-teal-400">
+        <input type="number" id="amount" placeholder="مبلغ" class="p-3 rounded-lg bg-gray-700 dark:bg-gray-600 light:bg-gray-200 text-white dark:text-white light:text-black border border-gray-600 dark:border-gray-500 light:border-gray-300 focus:border-teal-400">
+        <select id="type" class="p-3 rounded-lg bg-gray-700 dark:bg-gray-600 light:bg-gray-200 text-white dark:text-white light:text-black border border-gray-600 dark:border-gray-500 light:border-gray-300 focus:border-teal-400">
+          <option value="income">درآمد</option>
+          <option value="expense">هزینه</option>
+        </select>
+        <select id="category" class="p-3 rounded-lg bg-gray-700 dark:bg-gray-600 light:bg-gray-200 text-white dark:text-white light:text-black border border-gray-600 dark:border-gray-500 light:border-gray-300 focus:border-teal-400">
+          <option value="">دسته‌بندی (اختیاری)</option>
+        </select>
+        <button onclick="addCategory()" class="p-3 bg-yellow-500 text-black rounded-lg hover:bg-yellow-400 transition">افزودن دسته</button>
+        <button onclick="addTransaction()" class="p-3 bg-teal-500 text-black rounded-lg hover:bg-teal-400 transition">ثبت تراکنش</button>
+      </div>
+
+      <!-- Search, Filter, and Time Range -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <input type="text" id="search" placeholder="جستجوی تراکنش‌ها..." class="p-3 rounded-lg bg-gray-700 dark:bg-gray-600 light:bg-gray-200 text-white dark:text-white light:text-black border border-gray-600 dark:border-gray-500 light:border-gray-300 focus:border-teal-400" oninput="filterTransactions()">
+        <select id="filterType" class="p-3 rounded-lg bg-gray-700 dark:bg-gray-600 light:bg-gray-200 text-white dark:text-white light:text-black border border-gray-600 dark:border-gray-500 light:border-gray-300 focus:border-teal-400" onchange="filterTransactions()">
+          <option value="all">همه</option>
+          <option value="income">درآمد</option>
+          <option value="expense">هزینه</option>
+        </select>
+        <select id="timeRange" class="p-3 rounded-lg bg-gray-700 dark:bg-gray-600 light:bg-gray-200 text-white dark:text-white light:text-black border border-gray-600 dark:border-gray-500 light:border-gray-300 focus:border-teal-400" onchange="filterTransactions()">
+          <option value="all">تمام زمان‌ها</option>
+          <option value="week">این هفته</option>
+          <option value="month">این ماه</option>
+          <option value="year">این سال</option>
+        </select>
+      </div>
+
+      <!-- Summary -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 bg-gray-700 dark:bg-gray-600 light:bg-gray-100 p-4 rounded-lg animate-slide-in">
+        <p class="text-center">💰 موجودی: <span id="balance" class="font-bold">۰</span> تومان</p>
+        <p class="text-center">⬆️ درآمد کل: <span id="totalIncome" class="font-bold text-teal-400 dark:text-teal-300 light:text-teal-600">۰</span> تومان</p>
+        <p class="text-center">⬇️ هزینه کل: <span id="totalExpense" class="font-bold text-red-400 dark:text-red-300 light:text-red-600">۰</span> تومان</p>
+      </div>
+
+      <!-- Chart -->
+      <div class="mb-6 bg-gray-700 dark:bg-gray-600 light:bg-gray-100 p-4 rounded-lg animate-slide-in">
+        <canvas id="chartContainer"></canvas>
+      </div>
+
+      <!-- Export Buttons -->
+      <div class="flex flex-col sm:flex-row gap-4 mb-6">
+        <button onclick="exportToExcel()" class="p-3 bg-blue-500 text-white rounded-lg hover:bg-blue-400 transition">خروجی Excel</button>
+        <button onclick="exportToPDF()" class="p-3 bg-purple-500 text-white rounded-lg hover:bg-purple-400 transition">خروجی PDF</button>
+      </div>
+
+      <!-- Transactions List -->
+      <ul class="transactions space-y-3" id="transactionsList"></ul>
+    </div>
+  </div>
+
+  <script>
+    let transactions = [];
+    let categories = JSON.parse(localStorage.getItem('categories')) || ['غذا', 'حمل‌ونقل', 'سرگرمی', 'صورتحساب'];
+    let chart;
+    let userPassword = localStorage.getItem('rwd11RSD456') || null;
+
+    function encryptData(data) {
+      if (!userPassword) return JSON.stringify(data);
+      return CryptoJS.AES.encrypt(JSON.stringify(data), userPassword).toString();
+    }
+
+    function decryptData(encryptedData) {
+      if (!userPassword) return JSON.parse(encryptedData || '[]');
+      try {
+        const bytes = CryptoJS.AES.decrypt(encryptedData, userPassword);
+        return JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function unlockData() {
+      const password = document.getElementById('password').value;
+      if (!userPassword) {
+        userPassword = password;
+        localStorage.setItem('userPassword', password);
+      }
+      if (password === userPassword) {
+        document.getElementById('passwordSection').classList.add('hidden');
+        document.getElementById('mainContent').classList.remove('hidden');
+        transactions = decryptData(localStorage.getItem('transactions')) || [];
+        renderCategories();
+        render();
+      } else {
+        alert('رمز عبور اشتباه است!');
+      }
+    }
+
+    function toggleTheme() {
+      document.body.classList.toggle('dark-mode');
+      document.body.classList.toggle('light-mode');
+      render(); // Re-render to update chart colors
+    }
+
+    function formatNumber(num) {
+      return parseInt(num).toLocaleString('fa');
+    }
+
+    function saveTransactions() {
+      localStorage.setItem('transactions', encryptData(transactions));
+    }
+
+    function saveCategories() {
+      localStorage.setItem('categories', JSON.stringify(categories));
+    }
+
+    function addCategory() {
+      const newCategory = prompt('نام دسته‌بندی جدید:');
+      if (newCategory && !categories.includes(newCategory)) {
+        categories.push(newCategory);
+        saveCategories();
+        renderCategories();
+      }
+    }
+
+    function renderCategories() {
+      const categorySelect = document.getElementById('category');
+      categorySelect.innerHTML = '<option value="">دسته‌بندی (اختیاری)</option>';
+      categories.forEach(cat => {
+        const option = document.createElement('option');
+        option.value = cat;
+        option.textContent = cat;
+        categorySelect.appendChild(option);
+      });
+    }
+
+    function addTransaction() {
+      const desc = document.getElementById('desc').value.trim();
+      const amount = parseFloat(document.getElementById('amount').value);
+      const type = document.getElementById('type').value;
+      const category = document.getElementById('category').value;
+
+      if (!desc || isNaN(amount)) {
+        alert('لطفاً توضیح و مبلغ را وارد کنید.');
+        return;
+      }
+
+      const transaction = { desc, amount, type, category, date: new Date().toISOString() };
+      transactions.push(transaction);
+      saveTransactions();
+      render();
+      document.getElementById('desc').value = '';
+      document.getElementById('amount').value = '';
+      document.getElementById('category').value = '';
+    }
+
+    function deleteTransaction(index) {
+      if (confirm('حذف شود؟')) {
+        transactions.splice(index, 1);
+        saveTransactions();
+        render();
+      }
+    }
+
+    function filterTransactions() {
+      const search = document.getElementById('search').value.trim().toLowerCase();
+      const filterType = document.getElementById('filterType').value;
+      const timeRange = document.getElementById('timeRange').value;
+      let filtered = transactions;
+
+      // Search filter
+      if (search) {
+        filtered = filtered.filter(t => t.desc.toLowerCase().includes(search) || t.category?.toLowerCase().includes(search));
+      }
+
+      // Type filter
+      if (filterType !== 'all') {
+        filtered = filtered.filter(t => t.type === filterType);
+      }
+
+      // Time range filter
+      const now = new Date();
+      if (timeRange !== 'all') {
+        filtered = filtered.filter(t => {
+          const tDate = new Date(t.date);
+          if (timeRange === 'week') {
+            const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            return tDate >= oneWeekAgo;
+          } else if (timeRange === 'month') {
+            return tDate.getMonth() === now.getMonth() && tDate.getFullYear() === now.getFullYear();
+          } else if (timeRange === 'year') {
+            return tDate.getFullYear() === now.getFullYear();
+          }
+          return true;
+        });
+      }
+
+      renderList(filtered);
+      updateChart(filtered);
+    }
+
+    function renderList(filteredTransactions) {
+      const list = document.getElementById('transactionsList');
+      list.innerHTML = '';
+      let income = 0, expense = 0;
+
+      filteredTransactions.forEach((t, index) => {
+        if (t.type === 'income') income += t.amount;
+        else expense += t.amount;
+
+        const li = document.createElement('li');
+        li.className = `p-4 rounded-lg ${t.type === 'income' ? 'bg-teal-500/20' : 'bg-red-500/20'} flex justify-between items-center animate-slide-in`;
+        li.innerHTML = `
+          <span>${t.desc} - ${formatNumber(t.amount)} تومان (${t.type === 'income' ? 'درآمد' : 'هزینه'})${t.category ? ` - ${t.category}` : ''} - ${new Date(t.date).toLocaleString('fa')}</span>
+          <button onclick="deleteTransaction(${index})" class="p-2 bg-red-500 text-white rounded-lg hover:bg-red-400 transition">❌</button>
+        `;
+        list.appendChild(li);
+      });
+
+      document.getElementById('balance').innerText = formatNumber(income - expense);
+      document.getElementById('totalIncome').innerText = formatNumber(income);
+      document.getElementById('totalExpense').innerText = formatNumber(expense);
+    }
+
+    function updateChart(filteredTransactions) {
+      const isLightMode = document.body.classList.contains('light-mode');
+      const income = filteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+      const expense = filteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+      const categories = [...new Set(filteredTransactions.map(t => t.category).filter(c => c))];
+      const incomeByCategory = categories.map(cat => filteredTransactions.filter(t => t.type === 'income' && t.category === cat).reduce((sum, t) => sum + t.amount, 0));
+      const expenseByCategory = categories.map(cat => filteredTransactions.filter(t => t.type === 'expense' && t.category === cat).reduce((sum, t) => sum + t.amount, 0));
+
+      if (chart) chart.destroy();
+      chart = new Chart(document.getElementById('chartContainer'), {
+        type: 'bar',
+        data: {
+          labels: ['کل', ...categories],
+          datasets: [
+            {
+              label: 'درآمد',
+              data: [income, ...incomeByCategory],
+              backgroundColor: isLightMode ? '#14b8a6' : '#2dd4bf',
+              borderColor: isLightMode ? '#0d9488' : '#14b8a6',
+              borderWidth: 1
+            },
+            {
+              label: 'هزینه',
+              data: [expense, ...expenseByCategory],
+              backgroundColor: isLightMode ? '#ef4444' : '#f87171',
+              borderColor: isLightMode ? '#dc2626' : '#ef4444',
+              borderWidth: 1
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: { beginAtZero: true },
+            x: { stacked: false }
+          },
+          plugins: {
+            legend: { labels: { color: isLightMode ? '#1a202c' : '#e2e8f0' } }
+          }
+        }
+      });
+    }
+
+    function exportToExcel() {
+      const ws = XLSX.utils.json_to_sheet(transactions.map(t => ({
+        توضیح: t.desc,
+        مبلغ: t.amount,
+        نوع: t.type === 'income' ? 'درآمد' : 'هزینه',
+        دسته_بندی: t.category || 'بدون دسته',
+        تاریخ: new Date(t.date).toLocaleString('fa')
+      })));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'تراکنش‌ها');
+      XLSX.writeFile(wb, 'transactions.xlsx');
+    }
+
+    function exportToPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      doc.setFont('Amiri', 'normal');
+      doc.setFontSize(12);
+      doc.text('گزارش تراکنش‌ها', 10, 10);
+      transactions.forEach((t, i) => {
+        doc.text(`${i + 1}. ${t.desc} - ${formatNumber(t.amount)} تومان (${t.type === 'income' ? 'درآمد' : 'هزینه'}) ${t.category ? `- ${t.category}` : ''} - ${new Date(t.date).toLocaleString('fa')}`, 10, 20 + i * 10);
+      });
+      doc.save('transactions.pdf');
+    }
+
+    function render() {
+      renderList(transactions);
+      updateChart(transactions);
+    }
+
+    // Initialize
+    if (localStorage.getItem('transactions') || userPassword) {
+      document.getElementById('passwordSection').classList.remove('hidden');
+      document.getElementById('mainContent').classList.add('hidden');
+    } else {
+      renderCategories();
+      render();
+    }
+  </script>
+</body>
+</html>
